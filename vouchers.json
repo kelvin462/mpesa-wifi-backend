@@ -1,0 +1,114 @@
+[
+  {
+    "id": "1",
+    "name": "30 Minutes",
+    "amount": 5,
+    "durationMinutes": 30,
+    "voucherCodes": [
+      "3L32z",
+      "n8s93",
+      "mJe2k",
+      "YkH06",
+      "ul0Ty",
+      "5vDMC",
+      "8Y532",
+      "Th7Y7",
+      "Ur445"
+    ]
+  },
+  {
+    "id": "2",
+    "name": "2 Hours",
+    "amount": 10,
+    "durationMinutes": 120,
+    "voucherCodes": [
+      "43xHy",
+      "wKAS2",
+      "AO78d",
+      "8k0c4",
+      "1xl2X",
+      "myT1e"
+    ]
+  },
+  {
+    "id": "3",
+    "name": "3 Hours",
+    "amount": 15,
+    "durationMinutes": 180,
+    "voucherCodes": [
+      "8181W",
+      "Lr44E",
+      "tr6bZ",
+      "LKxJp",
+      "z3iXU",
+      "ZFM01"
+    ]
+  },
+  {
+    "id": "4",
+    "name": "6 Hours",
+    "amount": 20,
+    "durationMinutes": 360,
+    "voucherCodes": [
+      "wOq74",
+      "z0lxy",
+      "TWuD2",
+      "ovJ86"
+    ]
+  },
+  {
+    "id": "5",
+    "name": "12 Hours",
+    "amount": 30,
+    "durationMinutes": 720,
+    "voucherCodes": [
+      "sz4JU",
+      "R83os",
+      "VjW7e",
+      "673NC",
+      "522Q1",
+      "7EUEy"
+    ]
+  },
+  {
+    "id": "6",
+    "name": "24 Hours",
+    "amount": 40,
+    "durationMinutes": 1440,
+    "voucherCodes": [
+      "I1u89",
+      "03AhE",
+      "Cwb5z",
+      "v6Q6G",
+      "kczTf"
+    ]
+  },
+  {
+    "id": "7",
+    "name": "48 Hours",
+    "amount": 60,
+    "durationMinutes": 2880,
+    "voucherCodes": [
+      "k90dm",
+      "zYqQ5",
+      "S7p32",
+      "Q5sGt",
+      "BM7UE",
+      "0mWG8"
+    ]
+  },
+  {
+    "id": "8",
+    "name": "1 Week",
+    "amount": 180,
+    "durationMinutes": 10080,
+    "voucherCodes": [
+      "f12R0",
+      "636Wy",
+      "ThBBn",
+      "K6CsH",
+      "nyr1E",
+      "4a1xM"
+    ]
+  }
+]

@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<meta http-equiv="cache-control" content="no-cache" />
+<meta http-equiv="expires" content="0" />
+<meta http-equiv="pragma" content="no-cache" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MyPublicWiFi - Access Portal</title>
+<script type="text/javascript" src="jquery-1.4.3.min.js"></script>
+
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    background-color: #f4f6f9;
+    color: #1a1a1a;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 30px 15px;
+  }
+  .wrap {
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  .page-header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .page-description {
+    font-size: 32px;
+    font-weight: bold;
+    color: #1474CB;
+    letter-spacing: 0.5px;
+  }
+  .container {
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 0px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  }
+  .container-header {
+    font-size: 20px;
+    font-weight: bold;
+    color: #1474CB;
+    margin-bottom: 10px;
+    text-align: center;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 10px;
+  }
+  .container-description {
+    font-size: 13px;
+    color: #666666;
+    margin-bottom: 15px;
+    text-align: center;
+    line-height: 1.4;
+  }
+  
+  .bundle-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .bundle-card {
+    border: 1px solid #1474CB;
+    border-radius: 0px;
+    padding: 15px 10px;
+    background: #ffffff;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    aspect-ratio: 1 / 1;
+  }
+  .bundle-card h3 {
+    margin: 0 0 4px 0;
+    font-size: 16px;
+    color: #1a1a1a;
+  }
+  .bundle-card p {
+    margin: 0 0 6px 0;
+    font-size: 11px;
+    color: #666666;
+  }
+  .bundle-price {
+    font-size: 20px;
+    font-weight: bold;
+    color: #28a745;
+    margin: 4px 0;
+  }
+  .bundle-btn {
+    background: #1474CB;
+    color: #ffffff;
+    border: none;
+    padding: 8px 5px;
+    border-radius: 0px;
+    cursor: pointer;
+    font-weight: bold;
+    width: 100%;
+    font-size: 13px;
+    transition: background 0.2s;
+  }
+  .bundle-btn:hover {
+    background: #0d5aa0;
+  }
+  
+  input[type="text"], input[type="password"], input[type="tel"] {
+    width: 100%;
+    padding: 12px;
+    margin: 8px 0 12px 0;
+    border-radius: 0px;
+    border: 1px solid #cccccc;
+    background: #ffffff;
+    color: #1a1a1a;
+    font-size: 14px;
+    outline: none;
+  }
+  input[type="text"]:focus, input[type="password"]:focus, input[type="tel"]:focus {
+    border-color: #1474CB;
+  }
+  input[type="submit"], .btn-topup {
+    background: #1474CB;
+    color: #ffffff;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 0px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+    width: 100%;
+    transition: background 0.2s;
+  }
+  input[type="submit"]:hover, .btn-topup:hover {
+    background: #0d5aa0;
+  }
+  .contact-box {
+    text-align: center;
+    font-size: 14px;
+    color: #444444;
+  }
+  .contact-box strong {
+    color: #1474CB;
+    font-size: 16px;
+  }
+  .page-footer {
+    text-align: center;
+    font-size: 12px;
+    color: #777777;
+    margin-top: 25px;
+  }
+  .page-footer a {
+    color: #1474CB;
+    text-decoration: none;
+  }
+  .page-footer a:hover {
+    text-decoration: underline;
+  }
+  
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top:0; left:0; width:100%; height:100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+  }
+  .modal-box {
+    background: #ffffff;
+    padding: 20px;
+    width: 90%;
+    max-width: 380px;
+    border-radius: 0px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+</style>
+
+<script type="text/javascript">
+/*<![CDATA[*/
+
+// Automatically points to your local Node backend port 3000
+const API_BASE = 'http://' + (window.location.hostname || '192.168.5.1') + ':3000';
+
+function HideDialog(DialogId) {
+  const MessageDialog = document.getElementById(DialogId);
+  if (MessageDialog) MessageDialog.style.display = 'none';
+}
+
+function ShowMessage(DialogId, Msg) {
+  const MessageDialog = document.getElementById(DialogId);
+  if (MessageDialog) {
+    MessageDialog.style.display = 'block';
+    MessageDialog.textContent = Msg;
+  }
+}
+
+function ShowErrorMessage(Error) {
+  HideDialog("InfoDialog");
+  HideDialog("WarningDialog");
+  ShowMessage("ErrorDialog", document.getElementById(Error).textContent);
+}
+
+function VoucherAccountCheck() {
+  var chk = false;
+  if (document.getElementById("Voucher").value == '') {
+    ShowErrorMessage("VoucherInvalid");
+  } else {
+    chk = true;
+  }
+  return chk;
+}
+
+let selectedAmount = 0;
+let selectedDuration = '';
+
+function selectBundle(amount, duration) {
+  selectedAmount = amount;
+  selectedDuration = duration;
+  document.getElementById('modal-pkg-details').textContent = duration + ' - KES ' + amount;
+  document.getElementById('payment-modal').style.display = 'flex';
+}
+
+function closeModal() {
+  document.getElementById('payment-modal').style.display = 'none';
+}
+
+async function triggerPayment() {
+  const phone = document.getElementById('modal-phone').value.trim();
+  if (!phone) {
+    alert('Please enter your M-Pesa phone number');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/stkpush`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: phone, amount: selectedAmount, duration: selectedDuration })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      alert('STK Push sent! Check your phone and enter your M-Pesa PIN.');
+      closeModal();
+      pollPaymentStatus(phone);
+    } else {
+      alert('Failed to send payment request: ' + (data.error || 'Try again'));
+    }
+  } catch (err) {
+    alert('Backend server connection failed. Ensure Node.js server is running on port 3000.');
+  }
+}
+
+function pollPaymentStatus(phone) {
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/payment-status?phone=${encodeURIComponent(phone)}`);
+      const data = await res.json();
+
+      if (data.status === 'SUCCESS') {
+        clearInterval(interval);
+        alert('Payment successful! Voucher generated: ' + data.voucherCode + '. Logging you in...');
+        
+        // Automatically set voucher code and submit MyPublicWiFi login form
+        document.getElementById('Voucher').value = data.voucherCode;
+        document.getElementById('voucher-form').submit();
+        
+      } else if (data.status === 'FAILED') {
+        clearInterval(interval);
+        alert('Payment failed or cancelled: ' + (data.reason || 'Transaction failed.'));
+      }
+    } catch (err) {
+      console.error('Polling error:', err);
+    }
+  }, 3000);
+}
+
+async function switchDevice() {
+  const phone = document.getElementById('switch-phone').value.trim();
+  if (!phone) {
+    alert('Please enter your paid phone number');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/switch-device`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: phone })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      alert('Active plan found! Transferring connection...');
+      document.getElementById('Voucher').value = data.voucherCode;
+      document.getElementById('voucher-form').submit();
+    } else {
+      alert(data.message || 'No active plan found for this number.');
+    }
+  } catch (err) {
+    alert('Connection to backend failed.');
+  }
+}
+
+/*]]>*/
+</script>
+</head>
+<body>
+
+   <div class="wrap">
+
+      <div class="page-header">
+         <div class="page-description">moneyPrint</div>
+      </div>
+
+      <div id="ErrorDialog" class="container" style="display: none; color: #dc3545; text-align: center;"></div>
+      <div id="WarningDialog" class="container" style="display: none; color: #ffc107; text-align: center;"></div>
+      <div id="InfoDialog" class="container" style="display: none; color: #17a2b8; text-align: center;"></div>
+
+      <!-- M-Pesa Internet Bundle Section -->
+      <div class="container">
+         <div class="container-header">Buy Internet Package</div>
+         <div class="container-description">Select a package to receive an instant M-Pesa payment prompt.</div>
+         
+         <div class="bundle-grid">
+            <div class="bundle-card">
+              <h3>30 Mins</h3>
+              <p>Quick Browsing</p>
+              <div class="bundle-price">KES 5</div>
+              <button type="button" class="bundle-btn" onclick="selectBundle(5, '30 Minutes')">Buy</button>
+            </div>
+
+            <div class="bundle-card">
+              <h3>2 Hours</h3>
+              <p>Short Pass</p>
+              <div class="bundle-price">KES 10</div>
+              <button type="button" class="bundle-btn" onclick="selectBundle(10, '2 Hours')">Buy</button>
+            </div>
+
+            <div class="bundle-card">
+              <h3>3 Hours</h3>
+              <p>Standard Pass</p>
+              <div class="bundle-price">KES 15</div>
+              <button type="button" class="bundle-btn" onclick="selectBundle(15, '3 Hours')">Buy</button>
+            </div>
+
+            <div class="bundle-card">
+              <h3>6 Hours</h3>
+              <p>Half Day</p>
+              <div class="bundle-price">KES 20</div>
+              <button type="button" class="bundle-btn" onclick="selectBundle(20, '6 Hours')">Buy</button>
+            </div>
+
+            <div class="bundle-card">
+              <h3>12 Hours</h3>
+              <p>Extended Pass</p>
+              <div class="bundle-price">KES 30</div>
+              <button type="button" class="bundle-btn" onclick="selectBundle(30, '12 Hours')">Buy</button>
+            </div>
+
+            <div class="bundle-card">
+              <h3>24 Hours</h3>
+              <p>Full Day Pass</p>
+              <div class="bundle-price">KES 40</div>
+              <button type="button" class="bundle-btn" onclick="selectBundle(40, '24 Hours')">Buy</button>
+            </div>
+
+            <div class="bundle-card">
+              <h3>2 Days</h3>
+              <p>48 Hours Pass</p>
+              <div class="bundle-price">KES 60</div>
+              <button type="button" class="bundle-btn" onclick="selectBundle(60, '2 Days')">Buy</button>
+            </div>
+
+            <div class="bundle-card">
+              <h3>1 Week</h3>
+              <p>7 Days Unlimited</p>
+              <div class="bundle-price">KES 180</div>
+              <button type="button" class="bundle-btn" onclick="selectBundle(180, '1 Week')">Buy</button>
+            </div>
+         </div>
+      </div>
+
+      <!-- Switch Device / Re-login Section -->
+      <div class="container">
+         <div class="container-header">Switch Device / Re-connect</div>
+         <div class="container-description">Already have an active plan? Enter your M-Pesa phone number to transfer access to this device.</div>
+         <div>
+            <input type="tel" id="switch-phone" placeholder="2547XXXXXXXX or 07XXXXXXXX" />
+            <button type="button" class="bundle-btn" style="background: #28a745; padding: 12px; font-size: 14px;" onclick="switchDevice()">Switch Access to This Device</button>
+         </div>
+      </div>
+
+      <!-- Default Voucher Login Form (Targeted for Auto-Submission) -->
+      <div class="container">
+         <div class="container-header">Voucher Login</div>
+         <div class="container-description">Enter your voucher code directly to start browsing.</div>
+         <div class="container-body">
+            <form id="voucher-form" action="./" method="post" onsubmit="return VoucherAccountCheck();">
+               <input type="hidden" name="_action" value="VoucherLogin" />
+               <input type="hidden" name="Language" value="English" />
+               <input id="Voucher" placeholder="Voucher Code" name="Voucher" autocomplete="off" type="text"/>
+               <input value="Login" type="submit" />
+            </form>
+         </div>
+      </div>
+
+      <!-- Support / Contact Details Card -->
+      <div class="container">
+         <div class="container-header">Need Help?</div>
+         <div class="contact-box">
+            <p>For support or voucher inquiries:</p>
+            <p>Call / M-Pesa: <strong>+254 792 620 776</strong></p>
+         </div>
+      </div>
+
+      <div class="page-footer">
+         By logging in, you accept our <a href="termsofuse.html">Terms of Use</a>
+      </div>
+
+   </div>
+
+   <!-- Payment Modal Popup -->
+   <div id="payment-modal" class="modal-overlay">
+      <div class="modal-box">
+         <h3 style="margin-top:0; color:#1474CB; text-align:center;">Complete Payment</h3>
+         <p id="modal-pkg-details" style="text-align:center; font-weight:bold; margin-bottom:15px; color:#28a745;"></p>
+         <label style="font-size:12px; color:#555;">Enter M-Pesa Number:</label>
+         <input type="tel" id="modal-phone" placeholder="2547XXXXXXXX or 07XXXXXXXX" />
+         <button type="button" class="bundle-btn" style="background: #28a745; padding: 12px; font-size:15px; margin-bottom:8px;" onclick="triggerPayment()">Send STK Push</button>
+         <button type="button" class="bundle-btn" style="background: #6c757d; padding: 10px;" onclick="closeModal()">Cancel</button>
+      </div>
+   </div>
+
+   <div style="display: none;">
+      <p id="UsernameInvalid">The entered username is invalid.</p>
+      <p id="VoucherInvalid">The entered voucher is invalid.</p>
+   </div>
+
+</body>
+</html>
