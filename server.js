@@ -6,8 +6,18 @@ const path = require('path');
 require('dotenv').config();
 
 const app = express();
+
+// Explicit CORS Configuration to prevent browser blocks from local captive portal
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Preflight handling for all routes
+app.options('*', cors());
+
 app.use(express.json());
-app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // In-memory data stores for active sessions & transactions
@@ -42,6 +52,11 @@ async function getMpesaToken() {
   );
   return response.data.access_token;
 }
+
+// Root ping endpoint to verify deployment & wake up Render instance
+app.get('/', (req, res) => {
+  res.status(200).send('M-Pesa WiFi Backend is Online and Ready.');
+});
 
 // 1. Trigger M-Pesa STK Push
 app.post('/api/stkpush', async (req, res) => {
