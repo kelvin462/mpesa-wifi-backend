@@ -181,8 +181,8 @@
 <script type="text/javascript">
 /*<![CDATA[*/
 
-// Automatically points to your local Node backend port 3000
-const API_BASE = 'http://' + (window.location.hostname || '192.168.5.1') + ':3000';
+// Points directly to live Render backend production URL
+const API_BASE = 'https://mpesa-wifi-backend.onrender.com';
 
 function HideDialog(DialogId) {
   const MessageDialog = document.getElementById(DialogId);
@@ -250,7 +250,7 @@ async function triggerPayment() {
       alert('Failed to send payment request: ' + (data.error || 'Try again'));
     }
   } catch (err) {
-    alert('Backend server connection failed. Ensure Node.js server is running on port 3000.');
+    alert('Backend server connection failed. Ensure your Render backend service is online.');
   }
 }
 
