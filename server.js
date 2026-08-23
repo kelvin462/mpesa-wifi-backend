@@ -25,7 +25,7 @@ const activeUsers = {};
 // Helper function to format phone numbers to 254XXXXXXXXX
 function formatPhone(phone) {
   if (!phone) return '';
-  let cleaned = phone.replace(/\D/g, '');
+  let cleaned = phone.toString().replace(/\D/g, '');
   if (cleaned.startsWith('0')) {
     cleaned = '254' + cleaned.slice(1);
   } else if (cleaned.startsWith('7') || cleaned.startsWith('1')) {
@@ -100,7 +100,13 @@ app.post('/api/stkpush', async (req, res) => {
     );
 
     console.log('[STK PUSH SUCCESS]', response.data);
-    payments[formattedPhone] = { status: 'PENDING', amount, duration };
+    
+    // Store request metadata for callback reference
+    payments[formattedPhone] = { 
+      status: 'PENDING', 
+      amount: Number(amount), 
+      duration: duration || '30 Minutes' 
+    };
 
     return res.json({ success: true, message: 'STK Push sent successfully', data: response.data });
   } catch (error) {
@@ -134,7 +140,7 @@ app.post('/api/mpesa-callback', (req, res) => {
       const phoneItem = items.find(i => i.Name === 'PhoneNumber');
       const amountItem = items.find(i => i.Name === 'Amount');
       
-      const phone = phoneItem ? formatPhone(phoneItem.Value.toString()) : null;
+      const phone = phoneItem ? formatPhone(phoneItem.Value) : null;
       const paidAmount = amountItem ? Number(amountItem.Value) : 0;
 
       if (phone) {
@@ -149,27 +155,20 @@ app.post('/api/mpesa-callback', (req, res) => {
           }
         }
 
-        // Find the package matching the paid amount
+        // Find matching package or fallback to first package
         const matchedPkg = voucherData.find(p => p.amount === paidAmount) || voucherData[0];
         
         let assignedVoucher = 'M4IQi';
         if (matchedPkg && matchedPkg.voucherCodes && matchedPkg.voucherCodes.length > 0) {
           assignedVoucher = matchedPkg.voucherCodes.shift();
-          
-          if (fs.existsSync(vouchersFilePath)) {
-            try {
-              fs.writeFileSync(vouchersFilePath, JSON.stringify(voucherData, null, 2));
-            } catch (writeErr) {
-              console.error('Error updating vouchers.json:', writeErr.message);
-            }
-          }
         }
 
         const durationMins = matchedPkg ? matchedPkg.durationMinutes : 30;
-        const expiresAt = Date.now() + durationMins * 60 * 1000;
+        const expiresAt = Date.now() + (durationMins * 60 * 1000);
 
         payments[phone] = {
           status: 'SUCCESS',
+          amount: paidAmount,
           voucherCode: assignedVoucher
         };
 
@@ -182,6 +181,13 @@ app.post('/api/mpesa-callback', (req, res) => {
       }
     } else {
       console.log(`[PAYMENT CANCELLED/FAILED] Reason: ${callback.ResultDesc}`);
+      // Mark transaction status as failed if phone context is present
+      const items = callback.CallbackMetadata?.Item || [];
+      const phoneItem = items.find(i => i.Name === 'PhoneNumber');
+      if (phoneItem) {
+        const phone = formatPhone(phoneItem.Value);
+        payments[phone] = { status: 'FAILED' };
+      }
     }
   } catch (err) {
     console.error('Error processing callback payload:', err.message);
