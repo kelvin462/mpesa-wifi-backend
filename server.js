@@ -7,7 +7,7 @@ require('dotenv').config();
 
 const app = express();
 
-// Explicit CORS Configuration to prevent browser blocks from local captive portal
+// Explicit CORS Configuration to allow requests from local captive portal
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -15,6 +15,7 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // In-memory data stores for active sessions & transactions
@@ -23,6 +24,7 @@ const activeUsers = {};
 
 // Helper function to format phone numbers to 254XXXXXXXXX
 function formatPhone(phone) {
+  if (!phone) return '';
   let cleaned = phone.replace(/\D/g, '');
   if (cleaned.startsWith('0')) {
     cleaned = '254' + cleaned.slice(1);
@@ -32,7 +34,7 @@ function formatPhone(phone) {
   return cleaned;
 }
 
-// Generate Daraja OAuth Token (Sandbox URL with firewall bypass headers)
+// Generate Daraja OAuth Token
 async function getMpesaToken() {
   const credentials = `${process.env.CONSUMER_KEY.trim()}:${process.env.CONSUMER_SECRET.trim()}`;
   const auth = Buffer.from(credentials).toString('base64');
@@ -55,6 +57,11 @@ app.get('/', (req, res) => {
   res.status(200).send('M-Pesa WiFi Backend is Online and Ready.');
 });
 
+// Health check endpoint for index.html connection self-test
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'online', message: 'Backend connected successfully!' });
+});
+
 // 1. Trigger M-Pesa STK Push
 app.post('/api/stkpush', async (req, res) => {
   const { phone, amount, duration } = req.body;
@@ -66,35 +73,36 @@ app.post('/api/stkpush', async (req, res) => {
   const formattedPhone = formatPhone(phone);
   const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
   const password = Buffer.from(
-    `${process.env.BUSINESS_SHORTCODE}${process.env.PASSKEY}${timestamp}`
+    `${process.env.BUSINESS_SHORTCODE.trim()}${process.env.PASSKEY.trim()}${timestamp}`
   ).toString('base64');
 
   try {
     const token = await getMpesaToken();
 
     const payload = {
-      BusinessShortCode: process.env.BUSINESS_SHORTCODE,
+      BusinessShortCode: process.env.BUSINESS_SHORTCODE.trim(),
       Password: password,
       Timestamp: timestamp,
       TransactionType: 'CustomerPayBillOnline',
-      Amount: amount,
+      Amount: Math.round(Number(amount)),
       PartyA: formattedPhone,
-      PartyB: process.env.BUSINESS_SHORTCODE,
+      PartyB: process.env.BUSINESS_SHORTCODE.trim(),
       PhoneNumber: formattedPhone,
-      CallBackURL: `${process.env.CALLBACK_URL}/api/mpesa-callback`,
+      CallBackURL: `${process.env.CALLBACK_URL.trim()}/api/mpesa-callback`,
       AccountReference: 'WiFi Access',
       TransactionDesc: `WiFi Access Pass - ${duration || ''}`
     };
 
-    await axios.post(
+    const response = await axios.post(
       'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest',
       payload,
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
+    console.log('[STK PUSH SUCCESS]', response.data);
     payments[formattedPhone] = { status: 'PENDING', amount, duration };
 
-    return res.json({ success: true, message: 'STK Push sent successfully' });
+    return res.json({ success: true, message: 'STK Push sent successfully', data: response.data });
   } catch (error) {
     console.error('--- DARAJA ERROR DETAILS ---');
     if (error.response) {
@@ -109,67 +117,75 @@ app.post('/api/stkpush', async (req, res) => {
 
 // 2. Safaricom M-Pesa Callback Endpoint
 app.post('/api/mpesa-callback', (req, res) => {
-  const callback = req.body.Body.stkCallback;
-  const resultCode = callback.ResultCode;
-
-  if (resultCode === 0) {
-    const items = callback.CallbackMetadata.Item;
-    const phoneItem = items.find(i => i.Name === 'PhoneNumber');
-    const amountItem = items.find(i => i.Name === 'Amount');
-    
-    const phone = phoneItem ? phoneItem.Value.toString() : null;
-    const paidAmount = amountItem ? Number(amountItem.Value) : 0;
-
-    if (phone) {
-      let voucherData = [];
-      const vouchersFilePath = path.join(__dirname, 'vouchers.json');
-      
-      try {
-        voucherData = JSON.parse(fs.readFileSync(vouchersFilePath, 'utf8'));
-      } catch (err) {
-        console.error('Error reading vouchers.json:', err.message);
-      }
-
-      // Find the package matching the paid amount
-      const matchedPkg = voucherData.find(p => p.amount === paidAmount) || voucherData[0];
-      
-      let assignedVoucher = 'M4IQi';
-      if (matchedPkg && matchedPkg.voucherCodes && matchedPkg.voucherCodes.length > 0) {
-        // Shift/pull the next code from the array list
-        assignedVoucher = matchedPkg.voucherCodes.shift();
-        
-        // Write the updated array back to disk so used codes are removed from rotation
-        try {
-          fs.writeFileSync(vouchersFilePath, JSON.stringify(voucherData, null, 2));
-        } catch (writeErr) {
-          console.error('Error updating vouchers.json:', writeErr.message);
-        }
-      }
-
-      const durationMins = matchedPkg ? matchedPkg.durationMinutes : 30;
-      const expiresAt = Date.now() + durationMins * 60 * 1000;
-
-      payments[phone] = {
-        status: 'SUCCESS',
-        voucherCode: assignedVoucher
-      };
-
-      activeUsers[phone] = {
-        voucherCode: assignedVoucher,
-        expiresAt: expiresAt
-      };
-
-      console.log(`[PAYMENT SUCCESS] Phone: ${phone} | Amount: KES ${paidAmount} | Voucher: ${assignedVoucher}`);
-    }
-  } else {
-    const items = callback.CallbackMetadata ? callback.CallbackMetadata.Item : null;
-    const phoneItem = items ? items.find(i => i.Name === 'PhoneNumber') : null;
-    if (phoneItem) {
-      payments[phoneItem.Value.toString()] = { status: 'FAILED', reason: callback.ResultDesc };
-    }
-  }
-
+  // Always acknowledge Safaricom with 200 OK immediately
   res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
+
+  try {
+    console.log('=== M-PESA CALLBACK RECEIVED ===');
+    console.log(JSON.stringify(req.body, null, 2));
+
+    const callback = req.body?.Body?.stkCallback;
+    if (!callback) return;
+
+    const resultCode = callback.ResultCode;
+
+    if (resultCode === 0) {
+      const items = callback.CallbackMetadata?.Item || [];
+      const phoneItem = items.find(i => i.Name === 'PhoneNumber');
+      const amountItem = items.find(i => i.Name === 'Amount');
+      
+      const phone = phoneItem ? formatPhone(phoneItem.Value.toString()) : null;
+      const paidAmount = amountItem ? Number(amountItem.Value) : 0;
+
+      if (phone) {
+        let voucherData = [];
+        const vouchersFilePath = path.join(__dirname, 'vouchers.json');
+        
+        if (fs.existsSync(vouchersFilePath)) {
+          try {
+            voucherData = JSON.parse(fs.readFileSync(vouchersFilePath, 'utf8'));
+          } catch (err) {
+            console.error('Error reading vouchers.json:', err.message);
+          }
+        }
+
+        // Find the package matching the paid amount
+        const matchedPkg = voucherData.find(p => p.amount === paidAmount) || voucherData[0];
+        
+        let assignedVoucher = 'M4IQi';
+        if (matchedPkg && matchedPkg.voucherCodes && matchedPkg.voucherCodes.length > 0) {
+          assignedVoucher = matchedPkg.voucherCodes.shift();
+          
+          if (fs.existsSync(vouchersFilePath)) {
+            try {
+              fs.writeFileSync(vouchersFilePath, JSON.stringify(voucherData, null, 2));
+            } catch (writeErr) {
+              console.error('Error updating vouchers.json:', writeErr.message);
+            }
+          }
+        }
+
+        const durationMins = matchedPkg ? matchedPkg.durationMinutes : 30;
+        const expiresAt = Date.now() + durationMins * 60 * 1000;
+
+        payments[phone] = {
+          status: 'SUCCESS',
+          voucherCode: assignedVoucher
+        };
+
+        activeUsers[phone] = {
+          voucherCode: assignedVoucher,
+          expiresAt: expiresAt
+        };
+
+        console.log(`[PAYMENT SUCCESS] Phone: ${phone} | Amount: KES ${paidAmount} | Voucher: ${assignedVoucher}`);
+      }
+    } else {
+      console.log(`[PAYMENT CANCELLED/FAILED] Reason: ${callback.ResultDesc}`);
+    }
+  } catch (err) {
+    console.error('Error processing callback payload:', err.message);
+  }
 });
 
 // 3. Poll Payment Status Endpoint
